@@ -8,6 +8,7 @@ monkey.patch_all()
 import pymysql
 pymysql.install_as_MySQLdb()
 
+from boto import sqs
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask.ext.sqlalchemy import SQLAlchemy
@@ -63,15 +64,61 @@ class RedisAdapter(QueueAdapter):
         queue, data = self.client.brpop(queue)
         return self._loads(data)
 
+    @classmethod
+    def make_queue(cls, redis_host, redis_port):
+        r = redis.Redis(
+            host=config.REDIS_HOST,
+            port=config.REDIS_PORT,
+        )
+        return cls(r)
+
+
+class SQSAdapter(QueueAdapter):
+
+    def __init__(self, client):
+        self.client = client
+
+    def _clean_queue(self, queue):
+        return queue.replace('/', '_')
+
+    def push(self, queue, data):
+        d = self._dumps(data)
+        queue = self.client.create_queue(self._clean_queue(queue), 12 * 60 * 60)
+        queue.write(queue.new_message(d))
+        return json.loads(d)
+
+    def pop(self, queue):
+        queue = self.client.create_queue(self._clean_queue(queue), 12 * 60 * 60)
+        data = queue.get_messages(wait_time_seconds=10)
+
+        if len(data) == 0:
+            return None
+
+        data = data[0]
+        return self._loads(data._body)
+
+    @classmethod
+    def make_queue(cls, aws_access_key_id, aws_secret_access_key, aws_region):
+        conn = sqs.connect_to_region(aws_region)
+        return cls(conn)
+
 
 app = Flask(__name__)
 app.config.from_object(config)
 db = SQLAlchemy(app)
-r = redis.Redis(
-    host=config.REDIS_HOST,
-    port=config.REDIS_PORT,
-)
-r = RedisAdapter(r)
+
+
+q = None
+
+if config.QUEUE_ENGINE == "REDIS":
+    q = RedisAdapter.make_queue(config.REDIS_HOST, config.REDIS_PORT)
+
+if config.QUEUE_ENGINE == "SQS":
+    q = SQSAdapter.make_queue(
+        config.AWS_ACCESS_KEY_ID,
+        config.AWS_SECRET_ACCESS_KEY,
+        config.AWS_REGION,
+    )
 
 
 class Job(db.Model):
@@ -99,7 +146,11 @@ class Job(db.Model):
 
 @app.route('/queues/<path:queue>', methods=['GET'])
 def api_queue_pop(queue):
-    data = r.pop(queue)
+    data = q.pop(queue)
+
+    if not data:
+        return jsonify({"error": "No message yet."}), 404
+
     job = Job.query.filter_by(job_id=data['id']).first()
     job.process()
     db.session.commit()
@@ -108,7 +159,7 @@ def api_queue_pop(queue):
 
 @app.route('/queues/<path:queue>', methods=['POST'])
 def api_queue_push(queue):
-    data = r.push(queue, request.json)
+    data = q.push(queue, request.json)
     job = Job(
         job_id=data['id'],
         queue=queue,
