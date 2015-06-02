@@ -8,14 +8,15 @@ monkey.patch_all()
 import pymysql
 pymysql.install_as_MySQLdb()
 
+from datetime import datetime
 from flask import Flask, request, jsonify
 from flask.ext.sqlalchemy import SQLAlchemy
 from gevent import wsgi
-import json
-import redis
-import os
-import uuid
 import config
+import json
+import os
+import redis
+import uuid
 
 
 class QueueAdapter(object):
@@ -80,6 +81,7 @@ class Job(db.Model):
     status = db.Column(db.String(32), default="PENDING")
     result = db.Column(db.Text, default=None)
     data = db.Column(db.Text, default=None)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
         return {
@@ -88,6 +90,7 @@ class Job(db.Model):
             'status': self.status,
             'result': self.result,
             'data': self.data,
+            'created_at': self.created_at.isoformat(),
         }
 
     def process(self):
