@@ -89,13 +89,15 @@ class SQSAdapter(QueueAdapter):
 
     def pop(self, queue):
         queue = self.client.create_queue(self._clean_queue(queue), 12 * 60 * 60)
-        data = queue.get_messages(wait_time_seconds=10)
+        messages = queue.get_messages(wait_time_seconds=10)
 
-        if len(data) == 0:
+        if len(messages) == 0:
             return None
+        message = messages[0]
 
-        data = data[0]
-        return self._loads(data._body)
+        # XXX: Delete message from queue to stop it from recurring.
+        queue.delete_message(message)
+        return self._loads(message._body)
 
     @classmethod
     def make_queue(cls, aws_access_key_id, aws_secret_access_key, aws_region):
