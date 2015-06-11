@@ -168,7 +168,7 @@ def api_queue_pop(queue):
 
 @app.route('/queues/<path:queue>', methods=['POST'])
 def api_queue_push(queue):
-    data = q.push(queue_map(queue, "novosqs"), request.json)
+    data = q.push(queue_map.get(queue, "novosqs"), request.json)
     job = Job(
         job_id=data['id'],
         queue=queue,
