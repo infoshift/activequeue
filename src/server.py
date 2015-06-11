@@ -84,12 +84,12 @@ class SQSAdapter(QueueAdapter):
 
     def push(self, queue, data):
         d = self._dumps(data)
-        queue = self.client.create_queue(self._clean_queue(queue), 12 * 60 * 60)
+        queue = self.client.create_queue(self._clean_queue(queue))
         queue.write(queue.new_message(d))
         return json.loads(d)
 
     def pop(self, queue):
-        queue = self.client.create_queue(self._clean_queue(queue), 12 * 60 * 60)
+        queue = self.client.create_queue(self._clean_queue(queue))
         messages = queue.get_messages(wait_time_seconds=10)
 
         if len(messages) == 0:
