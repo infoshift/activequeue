@@ -101,7 +101,7 @@ class SQSAdapter(QueueAdapter):
 
     @classmethod
     def make_queue(cls, aws_access_key_id, aws_secret_access_key, aws_region):
-        conn = sqs.connect_to_region(aws_region)
+        conn = boto.connect_sqs()
         return cls(conn)
 
 
