@@ -161,8 +161,10 @@ def api_queue_pop(queue):
         return jsonify({"error": "No message yet."}), 404
 
     job = Job.query.filter_by(job_id=data['id']).first()
-    job.process()
-    db.session.commit()
+
+    if not job:
+        return jsonify({"error": "No job."}), 404
+
     return jsonify(data)
 
 
