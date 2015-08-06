@@ -8,17 +8,15 @@ monkey.patch_all()
 import pymysql
 pymysql.install_as_MySQLdb()
 
-from boto import sqs
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask.ext.sqlalchemy import SQLAlchemy
-from gevent import wsgi
 import boto
 import config
 import json
-import os
 import redis
 import uuid
+import gevent
 
 
 class QueueAdapter(object):
@@ -58,7 +56,7 @@ class RedisAdapter(QueueAdapter):
 
     def push(self, queue, data):
         d = self._dumps(data)
-        a = self.client.lpush(queue, d)
+        self.client.lpush(queue, d)
         return json.loads(d)
 
     def pop(self, queue):
@@ -203,6 +201,12 @@ def api_jobs():
     })
 
 
+def clock():
+    while True:
+        gevent.sleep(1)
+        print "tick"
+
+
 if __name__ == '__main__':
     from gevent.wsgi import WSGIServer
     from werkzeug.serving import run_with_reloader
@@ -220,7 +224,10 @@ if __name__ == '__main__':
 
     @run_with_reloader
     def run_server():
-        WSGIServer((
-            config.HOST,
-            config.PORT,
-        ), app).serve_forever()
+        gevent.joinall([
+            gevent.spawn(clock),
+            gevent.spawn(WSGIServer((
+                config.HOST,
+                config.PORT,
+            ), app).serve_forever)
+        ])
