@@ -132,6 +132,7 @@ class Job(db.Model):
     result = db.Column(db.Text, default=None)
     data = db.Column(db.Text, default=None)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    executed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
         return {
@@ -141,6 +142,7 @@ class Job(db.Model):
             'result': self.result,
             'data': self.data,
             'created_at': self.created_at.isoformat(),
+            'executed_at': self.executed_at.isoformat(),
         }
 
     def process(self):
@@ -164,6 +166,7 @@ def api_queue_pop(queue):
 
 @app.route('/queues/<path:queue>', methods=['POST'])
 def api_queue_push(queue):
+    executed_at = int(request.args.get("executed_at", datetime.utcnow()))
     data = q.push(queue, request.json)
     job = Job(
         job_id=data['id'],
