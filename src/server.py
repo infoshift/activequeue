@@ -166,12 +166,13 @@ def api_queue_pop(queue):
 
 @app.route('/queues/<path:queue>', methods=['POST'])
 def api_queue_push(queue):
-    executed_at = int(request.args.get("executed_at", datetime.utcnow()))
+    executed_at = request.args.get("executed_at", datetime.utcnow())
     data = q.push(queue, request.json)
     job = Job(
         job_id=data['id'],
         queue=queue,
         data=data['data'],
+        executed_at=executed_at,
     )
     db.session.add(job)
     db.session.commit()

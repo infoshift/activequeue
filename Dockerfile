@@ -7,3 +7,5 @@ RUN pip install boto==2.38.0
 RUN pip install flask-sqlalchemy==2.0.0
 RUN pip install pymysql==0.6.6
 RUN pip install simplejson==3.7.3
+RUN pip install flask-script==2.0.5
+RUN pip install flask-migrate==1.4.0
