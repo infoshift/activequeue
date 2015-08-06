@@ -147,15 +147,9 @@ class Job(db.Model):
         self.status = "PROCESSING"
 
 
-# XXX: HAAACK!
-queue_map = {
-    "config/push": "novosqs"
-}
-
-
 @app.route('/queues/<path:queue>', methods=['GET'])
 def api_queue_pop(queue):
-    data = q.pop(queue_map.get(queue, "novosqs"))
+    data = q.pop(queue)
 
     if not data:
         return jsonify({"error": "No message yet."}), 404
@@ -170,7 +164,7 @@ def api_queue_pop(queue):
 
 @app.route('/queues/<path:queue>', methods=['POST'])
 def api_queue_push(queue):
-    data = q.push(queue_map.get(queue, "novosqs"), request.json)
+    data = q.push(queue, request.json)
     job = Job(
         job_id=data['id'],
         queue=queue,
