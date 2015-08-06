@@ -132,6 +132,24 @@ class Job(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     executed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    @classmethod
+    def unprocessed(cls):
+        """Returns all the unprocessed jobs."""
+        return (
+            cls
+            .query
+            .filter_by(job_id=None)
+            .filter(cls.executed_at <= datetime.utcnow())
+            .all()
+        )
+
+    def push_to_queue(self, q):
+        """Proceeds to push the job to the queue."""
+        self = self.query.filter_by(id=self.id).with_for_update().first()
+        data = q.push(self.queue, json.loads(self.data))
+        self.job_id = data['id']
+        db.session.commit()
+
     def to_dict(self):
         return {
             'id': self.job_id,
@@ -165,16 +183,14 @@ def api_queue_pop(queue):
 @app.route('/queues/<path:queue>', methods=['POST'])
 def api_queue_push(queue):
     executed_at = request.args.get("executed_at", datetime.utcnow())
-    data = q.push(queue, request.json)
     job = Job(
-        job_id=data['id'],
         queue=queue,
-        data=data['data'],
+        data=json.dumps(request.json),
         executed_at=executed_at,
     )
     db.session.add(job)
     db.session.commit()
-    return jsonify(data)
+    return jsonify(job.to_dict())
 
 
 @app.route('/jobs/<id>', methods=['POST'])
@@ -203,13 +219,19 @@ def api_jobs():
 
 def clock():
     while True:
+        with app.app_context():
+            jobs = Job.unprocessed()
+            if len(jobs) > 0:
+                print " * Unprocessed jobs found!"
+                [j.push_to_queue(q) for j in jobs]
         gevent.sleep(1)
-        print "tick"
 
 
 if __name__ == '__main__':
     from gevent.wsgi import WSGIServer
     from werkzeug.serving import run_with_reloader
+
+    wsgi_app = app
 
     if config.DEBUG:
 
@@ -220,7 +242,7 @@ if __name__ == '__main__':
             return "Ok"
 
         from werkzeug.debug import DebuggedApplication
-        app = DebuggedApplication(app, evalex=True)
+        wsgi_app = DebuggedApplication(wsgi_app, evalex=True)
 
     @run_with_reloader
     def run_server():
@@ -229,5 +251,5 @@ if __name__ == '__main__':
             gevent.spawn(WSGIServer((
                 config.HOST,
                 config.PORT,
-            ), app).serve_forever)
+            ), wsgi_app).serve_forever)
         ])
