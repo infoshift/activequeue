@@ -143,12 +143,26 @@ class Job(db.Model):
             .all()
         )
 
-    def push_to_queue(self, q):
-        """Proceeds to push the job to the queue."""
-        self = self.query.filter_by(id=self.id).with_for_update().first()
-        data = q.push(self.queue, json.loads(self.data))
-        self.job_id = data['id']
+    @property
+    def is_queued(self):
+        return self.job_id is not None
+
+    @classmethod
+    def push_to_queue(cls, q, id):
+        """Pushes a job to the queue."""
+        print "acquiring lock..."
+        i = cls.query.filter_by(id=id).with_for_update().first()
+        print "lock acquired."
+
+        if i.is_queued:
+            print "skipping..."
+            return
+
+        data = q.push(i.queue, json.loads(i.data))
+        i.job_id = data['id']
         db.session.commit()
+        db.session.remove()
+        print "lock released."
 
     def to_dict(self):
         return {
@@ -221,9 +235,11 @@ def clock():
     while True:
         with app.app_context():
             jobs = Job.unprocessed()
-            if len(jobs) > 0:
-                print " * Unprocessed jobs found!"
-                [j.push_to_queue(q) for j in jobs]
+
+        if len(jobs) > 0:
+            print " * %s unprocessed jobs found!" % len(jobs)
+            with app.app_context():
+                [Job.push_to_queue(q, j.id) for j in jobs]
         gevent.sleep(1)
 
 
