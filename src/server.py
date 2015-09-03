@@ -135,13 +135,14 @@ class Job(db.Model):
     @classmethod
     def unprocessed(cls):
         """Returns all the unprocessed jobs."""
-        return (
+        r = (
             cls
             .query
             .filter_by(job_id=None)
             .filter(cls.executed_at <= datetime.utcnow())
             .all()
         )
+        return r
 
     @property
     def is_queued(self):
@@ -161,7 +162,7 @@ class Job(db.Model):
         data = q.push(i.queue, json.loads(i.data))
         i.job_id = data['id']
         db.session.commit()
-        db.session.remove()
+        db.session.close()
         print "lock released."
 
     def to_dict(self):
@@ -182,14 +183,14 @@ class Job(db.Model):
 @app.route('/queues/<path:queue>', methods=['GET'])
 def api_queue_pop(queue):
     data = q.pop(queue)
+    print data
 
     if not data:
         return jsonify({"error": "No message yet."}), 404
 
-    job = Job.query.filter_by(job_id=data['id']).first()
-
-    if not job:
-        return jsonify({"error": "No job."}), 404
+    #job = Job.query.filter_by(job_id=data['id']).first()
+    #if not job:
+    #    return jsonify({"error": "No job."}), 404
 
     return jsonify(data)
 
