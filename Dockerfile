@@ -9,3 +9,4 @@ RUN pip install pymysql==0.6.6
 RUN pip install simplejson==3.7.3
 RUN pip install flask-script==2.0.5
 RUN pip install flask-migrate==1.4.0
+RUN pip install requests==2.7.0

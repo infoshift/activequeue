@@ -232,16 +232,15 @@ def api_jobs():
     })
 
 
-def clock():
-    while True:
-        with app.app_context():
-            jobs = Job.unprocessed()
+@app.route('/check_pending', methods=['GET'])
+def api_check_pending():
+    jobs = Job.unprocessed()
 
-        if len(jobs) > 0:
-            print " * %s unprocessed jobs found!" % len(jobs)
-            with app.app_context():
-                [Job.push_to_queue(q, j.id) for j in jobs]
-        gevent.sleep(1)
+    if len(jobs) > 0:
+        print " * %s unprocessed jobs found!" % len(jobs)
+        [Job.push_to_queue(q, j.id) for j in jobs]
+
+    return "Ok"
 
 
 if __name__ == '__main__':
@@ -263,10 +262,7 @@ if __name__ == '__main__':
 
     @run_with_reloader
     def run_server():
-        gevent.joinall([
-            gevent.spawn(clock),
-            gevent.spawn(WSGIServer((
-                config.HOST,
-                config.PORT,
-            ), wsgi_app).serve_forever)
-        ])
+        WSGIServer((
+            config.HOST,
+            config.PORT,
+        ), wsgi_app).serve_forever()
