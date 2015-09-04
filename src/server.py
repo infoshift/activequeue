@@ -135,11 +135,13 @@ class Job(db.Model):
     @classmethod
     def unprocessed(cls):
         """Returns all the unprocessed jobs."""
+        print "Locking unprocessed jobs."
         r = (
             cls
             .query
             .filter_by(job_id=None)
             .filter(cls.executed_at <= datetime.utcnow())
+            .with_for_update()
             .all()
         )
         return r
@@ -148,22 +150,9 @@ class Job(db.Model):
     def is_queued(self):
         return self.job_id is not None
 
-    @classmethod
-    def push_to_queue(cls, q, id):
-        """Pushes a job to the queue."""
-        print "acquiring lock..."
-        i = cls.query.filter_by(id=id).with_for_update().first()
-        print "lock acquired."
-
-        if i.is_queued:
-            print "skipping..."
-            return
-
-        data = q.push(i.queue, json.loads(i.data))
-        i.job_id = data['id']
-        db.session.commit()
-        db.session.close()
-        print "lock released."
+    def push_to_queue(self, q):
+        data = q.push(self.queue, json.loads(self.data))
+        self.job_id = data["id"]
 
     def to_dict(self):
         return {
@@ -183,14 +172,9 @@ class Job(db.Model):
 @app.route('/queues/<path:queue>', methods=['GET'])
 def api_queue_pop(queue):
     data = q.pop(queue)
-    print data
 
     if not data:
         return jsonify({"error": "No message yet."}), 404
-
-    #job = Job.query.filter_by(job_id=data['id']).first()
-    #if not job:
-    #    return jsonify({"error": "No job."}), 404
 
     return jsonify(data)
 
@@ -238,8 +222,9 @@ def api_check_pending():
 
     if len(jobs) > 0:
         print " * %s unprocessed jobs found!" % len(jobs)
-        [Job.push_to_queue(q, j.id) for j in jobs]
+        [j.push_to_queue(q) for j in jobs]
 
+    db.session.commit()
     return "Ok"
 
 
