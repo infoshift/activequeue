@@ -11,4 +11,4 @@ while True:
         r = requests.get(url)
     except Exception as e:
         print "ERROR: %s" % e
-    time.sleep(5)
+    time.sleep(10)
