@@ -222,10 +222,16 @@ def api_check_pending():
 
     if len(jobs) > 0:
         print " * %s unprocessed jobs found!" % len(jobs)
+        count = 0
         for j in jobs:
             print " * Pushing to Broker %s" % j.to_dict()
             j.push_to_queue(q)
             print " * Pushed to Broker %s" % j.to_dict()
+
+            # Take a break.
+            count += 1
+            if count % 10 == 0:
+                break
 
     db.session.commit()
     return "Ok"
