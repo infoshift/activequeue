@@ -192,6 +192,7 @@ def api_queue_push(queue):
 
     # Immidiately push job to queue.
     job.push_to_queue(q)
+    db.session.commit()
     return jsonify(job.to_dict())
 
 
