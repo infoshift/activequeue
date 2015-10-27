@@ -181,7 +181,13 @@ def api_queue_pop(queue):
 
 @app.route('/queues/<path:queue>', methods=['POST'])
 def api_queue_push(queue):
-    executed_at = request.args.get("executed_at", datetime.utcnow())
+    executed_at = request.args.get("executed_at", None)
+    push_now = False
+
+    if not executed_at:
+        executed_at = datetime.utcnow()
+        push_now = True
+
     job = Job(
         queue=queue,
         data=json.dumps(request.json),
@@ -191,8 +197,11 @@ def api_queue_push(queue):
     db.session.commit()
 
     # Immidiately push job to queue.
-    job.push_to_queue(q)
-    db.session.commit()
+
+    if push_now:
+        job.push_to_queue(q)
+        db.session.commit()
+
     return jsonify(job.to_dict())
 
 
@@ -222,22 +231,22 @@ def api_jobs():
 
 @app.route('/check_pending', methods=['GET'])
 def api_check_pending():
-    #jobs = Job.unprocessed()
+    jobs = Job.unprocessed()
 
-    #if len(jobs) > 0:
-    #    print " * %s unprocessed jobs found!" % len(jobs)
-    #    count = 0
-    #    for j in jobs:
-    #        print " * Pushing to Broker %s" % j.to_dict()
-    #        j.push_to_queue(q)
-    #        print " * Pushed to Broker %s" % j.to_dict()
+    if len(jobs) > 0:
+        print " * %s unprocessed jobs found!" % len(jobs)
+        count = 0
+        for j in jobs:
+            print " * Pushing to Broker %s" % j.to_dict()
+            j.push_to_queue(q)
+            print " * Pushed to Broker %s" % j.to_dict()
 
-    #        # Take a break.
-    #        count += 1
-    #        if count % 10 == 0:
-    #            break
+            # Take a break.
+            count += 1
+            if count % 10 == 0:
+                break
 
-    #db.session.commit()
+    db.session.commit()
     return "Ok"
 
 
