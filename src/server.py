@@ -197,7 +197,6 @@ def api_queue_push(queue):
     db.session.commit()
 
     # Immidiately push job to queue.
-
     if push_now:
         job.push_to_queue(q)
         db.session.commit()
