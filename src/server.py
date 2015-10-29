@@ -17,6 +17,7 @@ import json
 import redis
 import uuid
 import gevent
+import uuid
 
 
 class QueueAdapter(object):
@@ -136,15 +137,24 @@ class Job(db.Model):
     def unprocessed(cls):
         """Returns all the unprocessed jobs."""
         print "Locking unprocessed jobs."
-        r = (
+        jobs = (
             cls
             .query
             .filter_by(job_id=None)
             .filter(cls.executed_at <= datetime.utcnow())
+            .limit(10)
             .with_for_update()
             .all()
         )
-        return r
+
+        if len(jobs) > 0:
+            print "Locked!"
+
+        for j in jobs:
+            j.set_to_pending()
+
+        db.session.commit()
+        return jobs
 
     @property
     def is_queued(self):
@@ -153,6 +163,9 @@ class Job(db.Model):
     def push_to_queue(self, q):
         data = q.push(self.queue, json.loads(self.data))
         self.job_id = data["id"]
+
+    def set_to_pending(self):
+        self.job_id = "pending_%s" % str(uuid.uuid4().hex)
 
     def to_dict(self):
         return {
@@ -239,11 +252,6 @@ def api_check_pending():
             print " * Pushing to Broker %s" % j.to_dict()
             j.push_to_queue(q)
             print " * Pushed to Broker %s" % j.to_dict()
-
-            # Take a break.
-            count += 1
-            if count % 10 == 0:
-                break
 
     db.session.commit()
     return "Ok"
