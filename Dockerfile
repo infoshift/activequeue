@@ -10,3 +10,4 @@ RUN pip install simplejson==3.7.3
 RUN pip install flask-script==2.0.5
 RUN pip install flask-migrate==1.4.0
 RUN pip install requests==2.7.0
+RUN pip install gunicorn==19.3.0
