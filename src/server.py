@@ -259,19 +259,3 @@ def api_jobs():
     return jsonify({
         'jobs': [j.to_dict() for j in Job.query.all()]
     })
-
-
-@app.route('/check_pending', methods=['GET'])
-def api_check_pending():
-    jobs = Job.unprocessed()
-
-    if len(jobs) > 0:
-        print " * %s unprocessed jobs found!" % len(jobs)
-        count = 0
-        for j in jobs:
-            print " * Pushing to Broker %s" % j.to_dict()
-            j.push_to_queue(q)
-            print " * Pushed to Broker %s" % j.to_dict()
-
-    db.session.commit()
-    return "Ok"
