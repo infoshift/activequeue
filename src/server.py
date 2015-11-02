@@ -49,7 +49,7 @@ class RedisAdapter(QueueAdapter):
     def __init__(self, client):
         self.client = client
 
-    def push(self, queue, data):
+    def push(self, queue, data, delay=0):
         d = self._dumps(data)
         self.client.lpush(queue, d)
         return json.loads(d)
@@ -75,10 +75,10 @@ class SQSAdapter(QueueAdapter):
     def _clean_queue(self, queue):
         return queue.replace('/', '_')
 
-    def push(self, queue, data):
+    def push(self, queue, data, delay=0):
         d = self._dumps(data)
         queue = self.client.create_queue(self._clean_queue(queue))
-        queue.write(queue.new_message(d))
+        queue.write(queue.new_message(d), delay_seconds=delay)
         return json.loads(d)
 
     def pop(self, queue):
@@ -139,7 +139,6 @@ class Job(db.Model):
 
         data = q.push(j.queue, json.loads(j.data))
         j.job_id = data["id"]
-        db.session.commit()
 
         print "Pushed to queue! %s" % j
         return True
@@ -148,8 +147,8 @@ class Job(db.Model):
     def is_queued(self):
         return self.job_id is not None
 
-    def push_to_queue(self, q):
-        data = q.push(self.queue, loaded_data)
+    def push_to_queue(self, q, delay=0):
+        data = q.push(self.queue, json.loads(self.data), delay=delay)
         self.job_id = data["id"]
 
     def set_to_pending(self):
@@ -208,9 +207,8 @@ def api_queue_push(queue):
         executed_at=executed_at,
     )
     db.session.add(job)
+    job.push_to_queue(q, delay=diff)
     db.session.commit()
-
-    gevent.spawn_later(diff, Job.async_push, job.id, q)
     return jsonify(job.to_dict())
 
 
