@@ -2,12 +2,6 @@
 # -*- encoding: utf-8 -*-
 # vim: set ft=python:
 
-from gevent import monkey
-monkey.patch_all()
-
-import pymysql
-pymysql.install_as_MySQLdb()
-
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask.ext.sqlalchemy import SQLAlchemy
@@ -133,6 +127,9 @@ class Job(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     executed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    def __repr__(self):
+        return "<Job %s:%s>" % (self.id, self.job_id)
+
     @classmethod
     def unprocessed(cls):
         """Returns all the unprocessed jobs."""
@@ -156,12 +153,26 @@ class Job(db.Model):
         db.session.commit()
         return jobs
 
+    @classmethod
+    def async_push(cls, id, q):
+        print "Pushing to queue"
+        j = cls.query.filter_by(id=id).first()
+        if not j:
+            return False
+
+        data = q.push(j.queue, json.loads(j.data))
+        j.job_id = data["id"]
+        db.session.commit()
+
+        print "Pushed to queue! %s" % j
+        return True
+
     @property
     def is_queued(self):
         return self.job_id is not None
 
     def push_to_queue(self, q):
-        data = q.push(self.queue, json.loads(self.data))
+        data = q.push(self.queue, loaded_data)
         self.job_id = data["id"]
 
     def set_to_pending(self):
@@ -194,12 +205,25 @@ def api_queue_pop(queue):
 
 @app.route('/queues/<path:queue>', methods=['POST'])
 def api_queue_push(queue):
+    now = datetime.utcnow()
     executed_at = request.args.get("executed_at", None)
     push_now = False
+
+    if executed_at:
+        executed_at = datetime.strptime(executed_at, "%Y-%m-%dT%H:%M:%S")
 
     if not executed_at:
         executed_at = datetime.utcnow()
         push_now = True
+
+    diff = int((executed_at - now).total_seconds())
+    print diff
+
+    if diff > 0:
+        push_now = False
+        print "Got delayed job"
+    else:
+        diff = 0
 
     job = Job(
         queue=queue,
@@ -209,11 +233,7 @@ def api_queue_push(queue):
     db.session.add(job)
     db.session.commit()
 
-    # Immidiately push job to queue.
-    if push_now:
-        job.push_to_queue(q)
-        db.session.commit()
-
+    gevent.spawn_later(diff, Job.async_push, job.id, q)
     return jsonify(job.to_dict())
 
 
@@ -255,28 +275,3 @@ def api_check_pending():
 
     db.session.commit()
     return "Ok"
-
-
-if __name__ == '__main__':
-    from gevent.wsgi import WSGIServer
-    from werkzeug.serving import run_with_reloader
-
-    wsgi_app = app
-
-    if config.DEBUG:
-
-        @app.route('/db/rebuild')
-        def db_rebuild():
-            db.drop_all()
-            db.create_all()
-            return "Ok"
-
-        from werkzeug.debug import DebuggedApplication
-        wsgi_app = DebuggedApplication(wsgi_app, evalex=True)
-
-    @run_with_reloader
-    def run_server():
-        WSGIServer((
-            config.HOST,
-            config.PORT,
-        ), wsgi_app).serve_forever()

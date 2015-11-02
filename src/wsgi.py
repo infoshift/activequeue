@@ -15,5 +15,5 @@ if config.PROFILE:
     app = ProfilerMiddleware(
         app,
         sort_by=("cumtime", ),
-        restrictions=("/app/middleware/*", 30),
+        restrictions=("/app/server.py", 30),
     )
