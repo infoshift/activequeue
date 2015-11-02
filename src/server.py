@@ -131,29 +131,6 @@ class Job(db.Model):
         return "<Job %s:%s>" % (self.id, self.job_id)
 
     @classmethod
-    def unprocessed(cls):
-        """Returns all the unprocessed jobs."""
-        print "Locking unprocessed jobs."
-        jobs = (
-            cls
-            .query
-            .filter_by(job_id=None)
-            .filter(cls.executed_at <= datetime.utcnow())
-            .limit(10)
-            .with_for_update()
-            .all()
-        )
-
-        if len(jobs) > 0:
-            print "Locked!"
-
-        for j in jobs:
-            j.set_to_pending()
-
-        db.session.commit()
-        return jobs
-
-    @classmethod
     def async_push(cls, id, q):
         print "Pushing to queue"
         j = cls.query.filter_by(id=id).first()
