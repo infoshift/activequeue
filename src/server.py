@@ -193,11 +193,9 @@ def api_queue_push(queue):
         push_now = True
 
     diff = int((executed_at - now).total_seconds())
-    print diff
 
     if diff > 0:
         push_now = False
-        print "Got delayed job"
     else:
         diff = 0
 
